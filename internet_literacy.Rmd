@@ -1,0 +1,620 @@
+---
+title: "インターネットリテラシー"
+
+date: "`r format(Sys.time(), '%Y/%m/%d')`"
+output: 
+  html_document:
+      highlight: pygments
+      theme: cerulean
+      df_print: paged
+      toc: true
+      toc_depth: 4
+      toc_float: 
+        collapsed: true
+        smooth_scroll: true
+      number_section: false
+      code_folding: hide
+  
+
+---
+
+```{r setup, include=FALSE}
+# 警告とメッセージを一括で出力しないようにする
+knitr::opts_chunk$set(warning = FALSE, message = FALSE, results.folding=NULL)
+```
+
+---
+
+# 1. 準備
+
+- パッケージの読み込み
+
+```{r, message=FALSE}
+
+library(tidyverse)
+library(broom)
+library(DT)
+library(gt) 
+library(patchwork) 
+
+
+library(psych) #心理学パッケージ；因子分析など
+library(lavaan) #確証的因子分析
+library(effsize) #効果量（コーエンのdなど）を求める
+
+#ggplotで作図した時の日本語の文字化け防止
+theme_set( theme_gray(base_family = "HiraKakuProN-W3")) 
+
+```
+
+- データの読み込み
+
+```{r}
+data <- read.csv("./data/net_literacy2.csv")
+
+
+```
+
+- データクリーニング
+
+```{r}
+data <- data %>%
+  rename(age = 年齢) %>%
+  mutate(treatment = 介入群は1,
+         sex = ifelse(性別==1,1,0),
+         edu = as.integer(学歴),
+         marriage = ifelse(結婚有無==2,1,0),
+         agegroup = factor(年齢階層, levels = c(1,2,3,4,5,6,7,8,88,99), labels = c("10代","20代","30代","40代","50代","60代","70代","80代以上","未記入", "その他")),
+         sexl = factor(性別, levels = c(1, 2), labels = c("男性","女性")),
+         q50c = ifelse(q50 == 4, 1, 0),
+         q51c = ifelse(q51 == 2, 1, 0),
+         q52c = ifelse(q52 == 2, 1, 0),
+         q53c = ifelse(q53 == 1, 1, 0),
+         q54c = ifelse(q54 == 2, 1, 0),
+         q55.1c = ifelse(q55.1 == 0,1,0),
+         q55.2c = ifelse(q55.2 == 1,1,0),
+         q55.3c = ifelse(q55.3 == 1,1,0),
+         q55.4c = ifelse(q55.4 == 0,1,0),
+         q55c = ifelse(q55.1c + q55.2c + q55.3c + q55.4c == 4, 1, 0),
+         q56c = ifelse(q56 == 1, 1, 0),
+         q57c = ifelse(q57 == 1, 1, 0),
+         q58.1c = ifelse(q58.1 == 1,1,0),
+         q58.2c = ifelse(q58.2 == 1,1,0),
+         q58.3c = ifelse(q58.3 == 1,1,0),
+         q58.4c = ifelse(q58.4 == 1,1,0),
+         q58.5c = ifelse(q58.5 == 0,1,0),
+         q58c = ifelse(q58.1c + q58.2c + q58.3c + q58.4c + q58.5c == 5, 1, 0),
+         q59c = ifelse(q59 == 2, 1, 0),
+         q60c = ifelse(q60 == 2, 1, 0),
+         q61c = ifelse(q61 == 2, 1, 0),
+         q62c = ifelse(q62 == 2, 1, 0),
+         aq50d = ifelse(aq50 == 4, 1, 0),
+         aq51d = ifelse(aq51 == 2, 1, 0),
+         aq52d = ifelse(aq52 == 2, 1, 0),
+         aq53d = ifelse(aq53 == 1, 1, 0),
+         aq54d = ifelse(aq54 == 2, 1, 0),
+         aq55.1d = ifelse(aq55.1 == 0,1,0),
+         aq55.2d = ifelse(aq55.2 == 1,1,0),
+         aq55.3d = ifelse(aq55.3 == 1,1,0),
+         aq55.4d = ifelse(aq55.4 == 0,1,0),
+         aq55d = ifelse(aq55.1d + aq55.2d + aq55.3d + aq55.4d == 4, 1, 0),
+         aq56d = ifelse(aq56 == 1, 1, 0),
+         aq57d = ifelse(aq57 == 1, 1, 0),
+         aq58.1d = ifelse(aq58.1 == 1,1,0),
+         aq58.2d = ifelse(aq58.2 == 1,1,0),
+         aq58.3d = ifelse(aq58.3 == 1,1,0),
+         aq58.4d = ifelse(aq58.4 == 1,1,0),
+         aq58.5d = ifelse(aq58.5 == 0,1,0),
+         aq58d = ifelse(aq58.1d + aq58.2d + aq58.3d + aq58.4d + aq58.5d == 5, 1, 0),
+         aq59d = ifelse(aq59 == 2, 1, 0),
+         aq60d = ifelse(aq60 == 2, 1, 0),
+         aq61d = ifelse(aq61 == 2, 1, 0),
+         aq62d = ifelse(aq62 == 2, 1, 0),) %>%
+  mutate(total_score1 = select(.,matches("5[0-9]c|6[0-2]c")) %>% rowSums()) %>%
+  mutate(total_score2 = select(.,matches("5[0-9]d|6[0-2]d")) %>% rowSums())
+
+data_after <- data %>%
+  filter(!is.na(aq29_1))
+
+attach(data_after)
+
+# エラーバーや正答率を計算するための仕込み
+# 
+# db <- data %>%
+#   select(matches("5[0-9]c|6[0-2]c"), sexl) %>%
+#   pivot_longer(cols = -"sexl", names_to = "question", values_to = "point")%>%
+#   group_by(question) %>%
+#   summarise(
+#     mean = mean(point, na.rm=TRUE), 
+#     sd = sd(point, na.rm=TRUE),
+#     min = min(point, na.rm=TRUE),
+#     max = max(point, na.rm=TRUE),
+#     se1 = sd(point, na.rm=TRUE)/sqrt(sum(!is.na(point))),
+#     .groups = "drop_last" #出力の時にメッセージが出るのが嫌ならつける
+#   )
+# 
+# ds <- data %>%
+#   select(matches("5[0-9]c|6[0-2]c"),sexl) %>%
+#   pivot_longer(cols = -"sexl", names_to = "question", values_to = "point")%>%
+#   group_by(sexl, question) %>%
+#   summarise(
+#     mean = mean(point, na.rm=TRUE), 
+#     sd = sd(point, na.rm=TRUE),
+#     min = min(point, na.rm=TRUE),
+#     max = max(point, na.rm=TRUE),
+#     se1 = sd(point, na.rm=TRUE)/sqrt(sum(!is.na(point))),
+#     .groups = "drop_last" #出力の時にメッセージが出るのが嫌ならつける
+#   )
+# 
+# da <- data %>%
+#   select(matches("5[0-9]c|6[0-2]c"),agegroup) %>%
+#   pivot_longer(cols = -"agegroup", names_to = "question", values_to = "point")%>%
+#   group_by(agegroup, question) %>%
+#   summarise(
+#     mean = mean(point, na.rm=TRUE), 
+#     sd = sd(point, na.rm=TRUE),
+#     min = min(point, na.rm=TRUE),
+#     max = max(point, na.rm=TRUE),
+#     se1 = sd(point, na.rm=TRUE)/sqrt(sum(!is.na(point))),
+#     .groups = "drop_last" #出力の時にメッセージが出るのが嫌ならつける
+#   )
+# 
+# 
+# dsa <- data %>%
+#   select(matches("5[0-9]c|6[0-2]c"),agegroup, sexl) %>%
+#   pivot_longer(cols = - c("agegroup", "sexl"), names_to = "question", values_to = "point")%>%
+#   group_by(agegroup, sexl, question) %>%
+#   summarise(
+#     mean = mean(point, na.rm=TRUE), 
+#     sd = sd(point, na.rm=TRUE),
+#     min = min(point, na.rm=TRUE),
+#     max = max(point, na.rm=TRUE),
+#     se1 = sd(point, na.rm=TRUE)/sqrt(sum(!is.na(point))),
+#     .groups = "drop_last" #出力の時にメッセージが出るのが嫌ならつける
+#   )
+
+```
+
+- データの表示
+
+```{r}
+datatable(
+  data, 
+  #filter = 'bottom',
+  extensions = 'Scroller',
+  options = list(
+  deferRender = TRUE,
+  scrollY = 200,
+  scrollX = TRUE,
+  scroller = TRUE
+))
+
+```
+
+---
+
+# 2. 回答者の基本情報
+
+```{r}
+
+data %>%
+  group_by(treatment) %>%
+  mutate(treatment = factor(介入群は1, levels = c(0,1), labels = c("統制群", "介入群"))
+         ) %>%
+  summarise(サンプル数 = n(),
+    　　　　年齢平均 = mean(age),
+            男性割合 = mean(sex),
+            婚姻割合 = mean(marriage),
+            学歴平均 = mean(edu)) %>%
+  # summarise(サンプル数 = n(),
+  #           across( c("age", "sex", "marriage", "edu"),
+  #                  list( mean = ~ mean(.x, na.rm = TRUE))  )) %>%
+  gt() %>%
+  tab_header(title = "１回目調査") %>%
+  cols_label(treatment = "　")
+
+
+data_after %>%
+  group_by(treatment) %>%
+  mutate(treatment = factor(介入群は1, levels = c(0,1), labels = c("統制群", "介入群"))
+         )%>%
+  summarise(サンプル数 = n(),
+    　　　　年齢平均 = mean(age),
+            男性割合 = mean(sex),
+            婚姻割合 = mean(marriage),
+            学歴平均 = mean(edu)) %>% 
+  gt() %>%
+  tab_header(title = "２回目調査") %>%
+  cols_label(treatment = "　")
+```
+
+---
+
+# 3. ランダム化の検証
+
+### 第１回調査
+
+- 介入後の各群の比較をする
+- Welch検定、マン・ホイットニー検定、コルモゴロフ・スミノフ検定をおこなう
+- いずれの検定でも、**介入群と非介入群に有意な差は認められない**
+
+<button type="button" class="btn btn-primary btn-sm ansBtn"></button>
+
+---
+
+##### 分析結果{.ans}
+
+- 年齢
+
+```{r, results.folding = "hide"}
+
+temp_before <- data %>%
+  mutate(treatment_score = ifelse(treatment == 1,total_score1,NA),
+         control_score = ifelse(treatment == 0,total_score1,NA),
+         treatment_age = ifelse(treatment == 1,age,NA),
+         control_age = ifelse(treatment == 0,age,NA),
+         treatment_sex = ifelse(treatment == 1,sex,NA),
+         control_sex = ifelse(treatment == 0,sex,NA),
+         treatment_marriage = ifelse(treatment == 1,marriage,NA),
+         control_marriage = ifelse(treatment == 0,marriage,NA)
+         )
+
+t.test(temp_before$age ~ temp_before$treatment)
+wilcox.test(temp_before$age ~ temp_before$treatment, correct=FALSE)
+ks.test(temp_before$treatment_age, temp_before$control_age)
+```
+
+---
+
+- 性別の割合
+
+```{r}
+chisq.test(temp_before$sex, temp_before$treatment, correct = F)
+t.test(temp_before$sex ~ temp_before$treatment)
+```
+
+---
+
+- 婚姻割合
+  
+```{r}
+chisq.test(temp_before$marriage, temp_before$treatment, correct = F)
+t.test(temp_before$marriage ~ temp_before$treatment)
+```
+
+---
+
+### 第２回調査
+
+- 介入後の各群の比較をする
+- Welch検定、マン・ホイットニー検定、コルモゴロフ・スミノフ検定をおこなう
+- いずれの検定でも、**介入群と非介入群に有意な差は認められない**
+
+<button type="button" class="btn btn-primary btn-sm ansBtn"></button>
+
+---
+
+##### 分析結果{.ans}
+
+- 年齢
+
+```{r, results.folding = "hide"}
+
+temp_after <- data_after %>%
+  mutate(treatment_score = ifelse(treatment == 1,total_score1,NA),
+         control_score = ifelse(treatment == 0,total_score1,NA),
+         treatment_age = ifelse(treatment == 1,age,NA),
+         control_age = ifelse(treatment == 0,age,NA),
+         treatment_sex = ifelse(treatment == 1,sex,NA),
+         control_sex = ifelse(treatment == 0,sex,NA),
+         treatment_marriage = ifelse(treatment == 1,marriage,NA),
+         control_marriage = ifelse(treatment == 0,marriage,NA)
+         )
+
+t.test(temp_after$age ~ temp_after$treatment)
+wilcox.test(temp_after$age ~ temp_after$treatment, correct=FALSE)
+ks.test(temp_after$treatment_age, temp_after$control_age)
+```
+
+---
+
+- 性別の割合
+
+```{r}
+chisq.test(temp_after$sex, temp_after$treatment, correct = F)
+t.test(temp_after$sex ~ temp_after$treatment)
+```
+
+---
+
+- 婚姻割合
+  
+```{r}
+chisq.test(temp_after$marriage, temp_after$treatment, correct = F)
+t.test(temp_after$marriage ~ temp_after$treatment)
+```
+
+---
+
+# 4. 介入効果の検証（t検定）
+
+- アンケートに２回とも回答した参加者のみデータとして使用
+- アンケートのQ50からQ62の13問の正答数を合計して変数を作成
+
+```{r}
+  
+data_after %>%
+  group_by(treatment) %>%
+  mutate(treatment = factor(介入群は1, levels = c(0,1), labels = c("統制群", "介入群"))
+         ) %>%
+  summarise(size = n(),
+    　　　　mean1 = mean(total_score1),
+    　　　　mean2 = mean(total_score2),
+    　　　　sd1 = sd(total_score1),
+    　　　　sd2 = sd(total_score2),
+    　　　　) %>% 
+  gt() %>%
+  cols_label(
+    size = "サンプル数",
+    mean1 = "１回目",
+    mean2 = "２回目",
+    sd1 = "１回目",
+    sd2 = "２回目",
+    ) %>%
+  tab_spanner(
+    label = "平均正答数",
+    columns = c(mean1, mean2)
+    ) %>%
+  tab_spanner(
+    label = "標準偏差",
+    columns = c(sd1, sd2)
+    ) %>%
+  cols_label(treatment = "　")
+
+```  
+<br>  
+
+- １回目と２回目の平均正答数について**対応のあるt検定**を実施
+- **統制群は有意差が認められない**
+- **介入群は有意差が認められた**
+
+<button type="button" class="btn btn-primary btn-sm ansBtn"></button>
+
+---
+
+##### 分析結果{.ans}
+
+- 対応のあるt検定（統制群）
+- １回目と２回目の平均正答数に優位差なし
+
+```{r}
+
+t.test(temp_after$total_score1[temp_after$treatment == 0], 
+       temp_after$total_score2[temp_after$treatment == 0],
+       paired=TRUE)
+
+```
+
+---
+
+- 対応のあるt検定（介入群）
+- １回目と２回目の平均正答数に優位差が認められる
+
+```{r}
+t.test(temp_after$total_score1[temp_after$treatment == 1], 
+       temp_after$total_score2[temp_after$treatment == 1],
+       paired=TRUE)
+```
+
+---
+
+- 念のためWelch検定も行ったが結果は同じ（上：統制群、下：介入群）
+
+```{r}
+
+t.test(temp_after$total_score1[temp_after$treatment == 0], 
+       temp_after$total_score2[temp_after$treatment == 0])
+
+t.test(temp_after$total_score1[temp_after$treatment == 1], 
+       temp_after$total_score2[temp_after$treatment == 1])
+
+```
+
+---
+
+##### 　{-}
+
+- 男性のみに同様の検定を行い、介入効果を検証
+
+```{r}
+  
+data_after %>%
+  group_by(treatment) %>%
+  filter(sex == 1) %>%
+  mutate(treatment = factor(介入群は1, levels = c(0,1), labels = c("統制群", "介入群"))
+         ) %>%
+  summarise(size = n(),
+    　　　　mean1 = mean(total_score1),
+    　　　　mean2 = mean(total_score2),
+    　　　　sd1 = sd(total_score1),
+    　　　　sd2 = sd(total_score2),
+    　　　　) %>% 
+  gt() %>%
+  cols_label(
+    size = "サンプル数",
+    mean1 = "１回目",
+    mean2 = "２回目",
+    sd1 = "１回目",
+    sd2 = "２回目",
+    ) %>%
+  tab_header(title = "男性のみ") %>%
+  tab_spanner(
+    label = "平均正答数",
+    columns = c(mean1, mean2)
+    ) %>%
+  tab_spanner(
+    label = "標準偏差",
+    columns = c(sd1, sd2)
+    ) %>%
+  cols_label(treatment = "　")
+
+```  
+<br>  
+
+- １回目と２回目の平均正答数について**対応のあるt検定**を実施
+- **統制群は有意差が認められない**
+- **介入群は有意差が認められた**
+
+<button type="button" class="btn btn-primary btn-sm ansBtn"></button>
+
+---
+
+##### 分析結果{.ans}
+
+- 対応のあるt検定（統制群）
+- １回目と２回目の平均正答数に優位差なし
+
+```{r}
+
+t.test(temp_after$total_score1[temp_after$treatment == 0 & temp_after$sex == 1], 
+       temp_after$total_score2[temp_after$treatment == 0 & temp_after$sex == 1],
+       paired=TRUE)
+
+```
+
+---
+
+- 対応のあるt検定（介入群）
+- １回目と２回目の平均正答数に優位差が認められる
+
+```{r}
+t.test(temp_after$total_score1[temp_after$treatment == 1 & temp_after$sex == 1], 
+       temp_after$total_score2[temp_after$treatment == 1 & temp_after$sex == 1],
+       paired=TRUE)
+```
+
+---
+
+- 念のためWelch検定も行ったが結果は同じ（上：統制群、下：介入群）
+
+```{r}
+
+t.test(temp_after$total_score1[temp_after$treatment == 0 & temp_after$sex == 1], 
+       temp_after$total_score2[temp_after$treatment == 0 & temp_after$sex == 1])
+
+t.test(temp_after$total_score1[temp_after$treatment == 1 & temp_after$sex == 1], 
+       temp_after$total_score2[temp_after$treatment == 1 & temp_after$sex == 1])
+
+```
+
+---
+
+##### 　{-}
+
+- 女性のみに同様の検定を行い、介入効果を検証
+
+```{r}
+  
+data_after %>%
+  group_by(treatment) %>%
+  filter(sex == 0) %>%
+  mutate(treatment = factor(介入群は1, levels = c(0,1), labels = c("統制群", "介入群"))
+         ) %>%
+  summarise(size = n(),
+    　　　　mean1 = mean(total_score1),
+    　　　　mean2 = mean(total_score2),
+    　　　　sd1 = sd(total_score1),
+    　　　　sd2 = sd(total_score2),
+    　　　　) %>% 
+  gt() %>%
+  cols_label(
+    size = "サンプル数",
+    mean1 = "１回目",
+    mean2 = "２回目",
+    sd1 = "１回目",
+    sd2 = "２回目",
+    ) %>%
+  tab_header(title = "女性のみ") %>%
+  tab_spanner(
+    label = "平均正答数",
+    columns = c(mean1, mean2)
+    ) %>%
+  tab_spanner(
+    label = "標準偏差",
+    columns = c(sd1, sd2)
+    ) %>%
+  cols_label(treatment = "　")
+
+```  
+<br>  
+
+- １回目と２回目の平均正答数について**対応のあるt検定**を実施
+- **統制群は有意差が認められない**
+- **介入群は有意差が認められた**
+
+<button type="button" class="btn btn-primary btn-sm ansBtn"></button>
+
+---
+
+##### 分析結果{.ans}
+
+- 対応のあるt検定（統制群）
+- １回目と２回目の平均正答数に優位差なし
+
+```{r}
+
+t.test(temp_after$total_score1[temp_after$treatment == 0 & temp_after$sex == 0], 
+       temp_after$total_score2[temp_after$treatment == 0 & temp_after$sex == 0],
+       paired=TRUE)
+
+```
+
+---
+
+- 対応のあるt検定（介入群）
+- １回目と２回目の平均正答数に優位差が認められる
+
+```{r}
+t.test(temp_after$total_score1[temp_after$treatment == 1 & temp_after$sex == 0], 
+       temp_after$total_score2[temp_after$treatment == 1 & temp_after$sex == 0],
+       paired=TRUE)
+```
+
+---
+
+- 念のためWelch検定も行ったが結果は同じ（上：統制群、下：介入群）
+
+```{r}
+
+t.test(temp_after$total_score1[temp_after$treatment == 0 & temp_after$sex == 0], 
+       temp_after$total_score2[temp_after$treatment == 0 & temp_after$sex == 0])
+
+t.test(temp_after$total_score1[temp_after$treatment == 1 & temp_after$sex == 0], 
+       temp_after$total_score2[temp_after$treatment == 1 & temp_after$sex == 0])
+
+```
+
+---
+
+# 5. 介入効果の検証（回帰分析）
+
+
+
+#### ToDO
+
+```{js}
+$(function(){
+  $(".ans").hide();
+  $(".ansBtn").text("詳細");
+  $(".ansBtn").click(function(){
+    var index = $(".ansBtn").index(this);
+    if($(".ans").eq(index).is(":visible")){
+      $(".ans").eq(index).hide();
+      $(".ansBtn").eq(index).text("詳細");
+    }else{
+      $(".ans").eq(index).show();
+      $(".ansBtn").eq(index).text("隠す");
+    };
+  });
+});
+```
