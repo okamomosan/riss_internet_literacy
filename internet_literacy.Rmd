@@ -34,8 +34,11 @@ knitr::opts_chunk$set(warning = FALSE, message = FALSE, results.folding=NULL)
 library(tidyverse)
 library(broom)
 library(DT)
+library(texreg)
+library(htmltools) 
 library(gt) 
 library(patchwork) 
+library(estimatr)
 
 
 library(psych) #心理学パッケージ；因子分析など
@@ -61,6 +64,7 @@ data <- read.csv("./data/net_literacy2.csv")
 data <- data %>%
   rename(age = 年齢) %>%
   mutate(treatment = 介入群は1,
+         pref = 県番号,
          sex = ifelse(性別==1,1,0),
          edu = as.integer(学歴),
          marriage = ifelse(結婚有無==2,1,0),
@@ -111,7 +115,8 @@ data <- data %>%
          aq61d = ifelse(aq61 == 2, 1, 0),
          aq62d = ifelse(aq62 == 2, 1, 0),) %>%
   mutate(total_score1 = select(.,matches("5[0-9]c|6[0-2]c")) %>% rowSums()) %>%
-  mutate(total_score2 = select(.,matches("5[0-9]d|6[0-2]d")) %>% rowSums())
+  mutate(total_score2 = select(.,matches("5[0-9]d|6[0-2]d")) %>% rowSums()) %>%
+  mutate(diff_score = total_score2 - total_score1)
 
 data_after <- data %>%
   filter(!is.na(aq29_1))
@@ -345,7 +350,7 @@ t.test(temp_after$marriage ~ temp_after$treatment)
   
 data_after %>%
   group_by(treatment) %>%
-  mutate(treatment = factor(介入群は1, levels = c(0,1), labels = c("統制群", "介入群"))
+  mutate(treatment = factor(treatment, levels = c(0,1), labels = c("統制群", "介入群"))
          ) %>%
   summarise(size = n(),
     　　　　mean1 = mean(total_score1),
@@ -389,8 +394,8 @@ data_after %>%
 
 ```{r}
 
-t.test(temp_after$total_score1[temp_after$treatment == 0], 
-       temp_after$total_score2[temp_after$treatment == 0],
+t.test(data_after$total_score1[data_after$treatment == 0], 
+       data_after$total_score2[data_after$treatment == 0],
        paired=TRUE)
 
 ```
@@ -401,8 +406,8 @@ t.test(temp_after$total_score1[temp_after$treatment == 0],
 - １回目と２回目の平均正答数に優位差が認められる
 
 ```{r}
-t.test(temp_after$total_score1[temp_after$treatment == 1], 
-       temp_after$total_score2[temp_after$treatment == 1],
+t.test(data_after$total_score1[data_after$treatment == 1], 
+       data_after$total_score2[data_after$treatment == 1],
        paired=TRUE)
 ```
 
@@ -412,11 +417,11 @@ t.test(temp_after$total_score1[temp_after$treatment == 1],
 
 ```{r}
 
-t.test(temp_after$total_score1[temp_after$treatment == 0], 
-       temp_after$total_score2[temp_after$treatment == 0])
+t.test(data_after$total_score1[data_after$treatment == 0], 
+       data_after$total_score2[data_after$treatment == 0])
 
-t.test(temp_after$total_score1[temp_after$treatment == 1], 
-       temp_after$total_score2[temp_after$treatment == 1])
+t.test(data_after$total_score1[data_after$treatment == 1], 
+       data_after$total_score2[data_after$treatment == 1])
 
 ```
 
@@ -431,7 +436,7 @@ t.test(temp_after$total_score1[temp_after$treatment == 1],
 data_after %>%
   group_by(treatment) %>%
   filter(sex == 1) %>%
-  mutate(treatment = factor(介入群は1, levels = c(0,1), labels = c("統制群", "介入群"))
+  mutate(treatment = factor(treatment, levels = c(0,1), labels = c("統制群", "介入群"))
          ) %>%
   summarise(size = n(),
     　　　　mean1 = mean(total_score1),
@@ -476,8 +481,8 @@ data_after %>%
 
 ```{r}
 
-t.test(temp_after$total_score1[temp_after$treatment == 0 & temp_after$sex == 1], 
-       temp_after$total_score2[temp_after$treatment == 0 & temp_after$sex == 1],
+t.test(data_after$total_score1[data_after$treatment == 0 & data_after$sex == 1], 
+       data_after$total_score2[data_after$treatment == 0 & data_after$sex == 1],
        paired=TRUE)
 
 ```
@@ -488,8 +493,8 @@ t.test(temp_after$total_score1[temp_after$treatment == 0 & temp_after$sex == 1],
 - １回目と２回目の平均正答数に優位差が認められる
 
 ```{r}
-t.test(temp_after$total_score1[temp_after$treatment == 1 & temp_after$sex == 1], 
-       temp_after$total_score2[temp_after$treatment == 1 & temp_after$sex == 1],
+t.test(data_after$total_score1[data_after$treatment == 1 & data_after$sex == 1], 
+       data_after$total_score2[data_after$treatment == 1 & data_after$sex == 1],
        paired=TRUE)
 ```
 
@@ -499,11 +504,11 @@ t.test(temp_after$total_score1[temp_after$treatment == 1 & temp_after$sex == 1],
 
 ```{r}
 
-t.test(temp_after$total_score1[temp_after$treatment == 0 & temp_after$sex == 1], 
-       temp_after$total_score2[temp_after$treatment == 0 & temp_after$sex == 1])
+t.test(data_after$total_score1[data_after$treatment == 0 & data_after$sex == 1], 
+       data_after$total_score2[data_after$treatment == 0 & data_after$sex == 1])
 
-t.test(temp_after$total_score1[temp_after$treatment == 1 & temp_after$sex == 1], 
-       temp_after$total_score2[temp_after$treatment == 1 & temp_after$sex == 1])
+t.test(data_after$total_score1[data_after$treatment == 1 & data_after$sex == 1], 
+       data_after$total_score2[data_after$treatment == 1 & data_after$sex == 1])
 
 ```
 
@@ -518,7 +523,7 @@ t.test(temp_after$total_score1[temp_after$treatment == 1 & temp_after$sex == 1],
 data_after %>%
   group_by(treatment) %>%
   filter(sex == 0) %>%
-  mutate(treatment = factor(介入群は1, levels = c(0,1), labels = c("統制群", "介入群"))
+  mutate(treatment = factor(treatment, levels = c(0,1), labels = c("統制群", "介入群"))
          ) %>%
   summarise(size = n(),
     　　　　mean1 = mean(total_score1),
@@ -563,8 +568,8 @@ data_after %>%
 
 ```{r}
 
-t.test(temp_after$total_score1[temp_after$treatment == 0 & temp_after$sex == 0], 
-       temp_after$total_score2[temp_after$treatment == 0 & temp_after$sex == 0],
+t.test(data_after$total_score1[data_after$treatment == 0 & data_after$sex == 0], 
+       data_after$total_score2[data_after$treatment == 0 & data_after$sex == 0],
        paired=TRUE)
 
 ```
@@ -575,8 +580,8 @@ t.test(temp_after$total_score1[temp_after$treatment == 0 & temp_after$sex == 0],
 - １回目と２回目の平均正答数に優位差が認められる
 
 ```{r}
-t.test(temp_after$total_score1[temp_after$treatment == 1 & temp_after$sex == 0], 
-       temp_after$total_score2[temp_after$treatment == 1 & temp_after$sex == 0],
+t.test(data_after$total_score1[data_after$treatment == 1 & data_after$sex == 0], 
+       data_after$total_score2[data_after$treatment == 1 & data_after$sex == 0],
        paired=TRUE)
 ```
 
@@ -586,17 +591,79 @@ t.test(temp_after$total_score1[temp_after$treatment == 1 & temp_after$sex == 0],
 
 ```{r}
 
-t.test(temp_after$total_score1[temp_after$treatment == 0 & temp_after$sex == 0], 
-       temp_after$total_score2[temp_after$treatment == 0 & temp_after$sex == 0])
+t.test(data_after$total_score1[data_after$treatment == 0 & data_after$sex == 0], 
+       data_after$total_score2[data_after$treatment == 0 & data_after$sex == 0])
 
-t.test(temp_after$total_score1[temp_after$treatment == 1 & temp_after$sex == 0], 
-       temp_after$total_score2[temp_after$treatment == 1 & temp_after$sex == 0])
+t.test(data_after$total_score1[data_after$treatment == 1 & data_after$sex == 0], 
+       data_after$total_score2[data_after$treatment == 1 & data_after$sex == 0])
 
 ```
 
 ---
 
 # 5. 介入効果の検証（回帰分析）
+
+```{r}
+
+reg1 <- 
+  data_after %>%
+  lm(diff_score ~ treatment, data =.)
+
+reg2 <- 
+  data_after %>%
+  filter(sex == 1) %>%
+  lm(diff_score ~ treatment, data =.)
+
+reg3 <- 
+  data_after %>%
+  filter(sex == 0) %>%
+  lm(diff_score ~ treatment, data =.)
+
+reg <- htmlreg(
+            stars = c(0.01, 0.05, 0.1),
+            custom.model.names = c("Model1", "Model2(Male)", "Model3(Female)"),
+            list(reg1, reg2, reg3),
+            caption.above = TRUE,
+            caption = "回帰分析",
+            # custom.coef.names = c("定数","指摘価値", "性別－女性", 
+            #                                       "教育年数", "就労経験")
+            )
+cat(reg, file="reg.html")
+includeHTML("reg.html")
+
+summary(reg2)
+
+```
+
+```{r}
+reg_robust1 <- 
+  data_after %>%
+  lm_robust(diff_score ~ treatment, clusters = pref, se_type = "stata", data =.)
+
+reg_robust2 <- 
+  data_after %>%
+  filter(sex == 1) %>%
+  lm_robust(diff_score ~ treatment, clusters = pref, se_type = "stata", data =.)
+
+reg_robust3 <- 
+  data_after %>%
+  filter(sex == 0) %>%
+  lm_robust(diff_score ~ treatment, clusters = pref, se_type = "stata", data =.)
+
+reg_robust <- htmlreg(
+            custom.model.names = c("Model1", "Model2(Male)", "Model3(Female)"),
+            list(reg_robust1, reg_robust2, reg_robust3),
+            caption.above = TRUE,
+            caption = "回帰分析",
+            # custom.coef.names = c("定数","指摘価値", "性別－女性", 
+            #                                       "教育年数", "就労経験")
+            )
+cat(reg_robust, file="reg_robust.html")
+includeHTML("reg_robust.html")
+
+summary(reg_robust2)
+```
+
 
 
 
